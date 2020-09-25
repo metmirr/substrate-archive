@@ -25,7 +25,8 @@ struct TomlConfig {
     polkadot_path: PathBuf,
     cache_size: usize,
     block_workers: Option<usize>,
-    wasm_pages: Option<u64>,
+	wasm_pages: Option<u64>,
+	max_block_load: Option<usize>,
     db_host: Option<String>,
     db_port: Option<String>,
     db_user: Option<String>,
@@ -78,7 +79,8 @@ impl Config {
             cli: cli_opts,
             cache_size: toml_conf.as_ref().map(|c| c.cache_size),
             block_workers: toml_conf.as_ref().map(|c| c.block_workers).flatten(),
-            wasm_pages: toml_conf.as_ref().map(|c| c.wasm_pages).flatten(),
+			wasm_pages: toml_conf.as_ref().map(|c| c.wasm_pages).flatten(),
+			max_block_load: toml_conf.as_ref().map(|c| c.max_block_load).flatten(),
         })
     }
 
@@ -109,5 +111,9 @@ impl Config {
 
     pub fn wasm_pages(&self) -> Option<u64> {
         self.wasm_pages
-    }
+	}
+	
+	pub fn max_block_load(&self) -> Option<u64> {
+        self.max_block_load
+	}
 }
