@@ -53,7 +53,9 @@ pub struct Builder<B, R, D> {
     pub wasm_pages: Option<u64>,
     /// Chain spec describing the chain
     pub chain_spec: Option<Box<dyn ChainSpec>>,
-    pub _marker: PhantomData<(B, R, D)>,
+	pub _marker: PhantomData<(B, R, D)>,
+	/// maximimum amount of blocks to index at once
+	pub max_block_load: Option<usize>,
 }
 
 impl<B, R, D> Default for Builder<B, R, D> {
@@ -65,7 +67,8 @@ impl<B, R, D> Default for Builder<B, R, D> {
             block_workers: None,
             wasm_pages: None,
             chain_spec: None,
-            _marker: PhantomData,
+			_marker: PhantomData,
+			max_block_load: None,
         }
     }
 }
@@ -117,14 +120,22 @@ impl<B, R, D> Builder<B, R, D> {
     }
 
     /// Specify a chain spec for storing metadata about the running archiver
-    /// in a persistant directory.
     ///
     /// # Default
     /// Defaults to storing metadata in a temporary directory.
     pub fn chain_spec(mut self, spec: Box<dyn ChainSpec>) -> Self {
         self.chain_spec = Some(spec);
         self
-    }
+	}
+	
+	/// Set the number of blocks to index at once
+	/// 
+	/// # Default
+	/// Defaults to .. TODO
+	pub fn max_block_load(mut self, max_block_load: usize) -> Self { 
+		self.max_block_load = Some(max_block_load);
+		self;
+	}
 }
 
 fn parse_urls(chain_data_path: Option<String>, pg_url: Option<String>) -> (String, String) {

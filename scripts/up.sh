@@ -11,10 +11,11 @@ echo
 if [ -z "$PASSWORD" ]
 then
   echo "Empty password provided, setting password to '123'"
-  PASSWORD=123
+  PASSWORD=password
 fi
 
 set_environment() {
+  #export DATABASE_URL="postgres://postgres:${PASSWORD}@localhost:5432/${DB_NAME}"
   export DATABASE_URL="postgres://postgres:${PASSWORD}@localhost:5432/${DB_NAME}"
 }
 

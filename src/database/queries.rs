@@ -63,6 +63,11 @@ pub(crate) async fn missing_blocks_min_max(
     conn: &mut PgConnection,
     min: u32,
 ) -> Result<HashSet<u32>> {
+    // zeke notes
+    // max(block_num) == highest block number in db
+    // SQL query in english:
+    // make an series inclusive min..max(block_num) from the table "blocks"
+    // filter out the blocks with a block_num in the series
     Ok(sqlx::query_as::<_, (i32,)>(
         "SELECT generate_series
         FROM (SELECT $1 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)

@@ -20,6 +20,7 @@ use crate::{
     error::Result,
     types::{BatchBlock, Block},
 };
+use hashbrown::HashSet;
 use sp_runtime::{
     generic::SignedBlock,
     traits::{Block as BlockT, Header as _, NumberFor},
@@ -42,6 +43,8 @@ where
     rt_cache: RuntimeVersionCache<B>,
     /// the last maximum block number from which we are sure every block before then is indexed
     last_max: u32,
+    /// the maximimum amount of blocks to index at once
+    max_block_load: usize,
 }
 
 impl<B: BlockT + Unpin> BlocksIndexer<B>
@@ -53,6 +56,7 @@ where
         backend: Arc<ReadOnlyBackend<B>>,
         db_addr: DatabaseAct<B>,
         meta: Address<Metadata<B>>,
+        max_block_load: usize,
     ) -> Self {
         Self {
             rt_cache: RuntimeVersionCache::new(backend.clone()),
@@ -60,6 +64,7 @@ where
             backend,
             db: db_addr,
             meta,
+            max_block_load,
         }
     }
 
@@ -90,16 +95,46 @@ where
     /// sets the `last_max` value.
     async fn re_index(&mut self) -> Result<Option<Vec<Block<B>>>> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
+        // zeke - get blocks we might be missing, starting from the last max
         let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
+        // len is the count of blocks missing
         let len = numbers.len();
         log::info!("{} missing blocks", len);
+        // Select the hightest block number in the db
         self.last_max = if let Some(m) = queries::max_block(&mut conn).await? {
             m
         } else {
             // a `None` means that the blocks table is not populated yet
             return Ok(None);
         };
-        let blocks = self.collect_blocks(move |n| numbers.contains(&n)).await?;
+        // If length of numbers > self.max_block_load, collect in increments of max_block_load
+        let blocks = if (len > self.max_block_load) {
+            let res: Vec<Block<B>>;
+            let mut remaining = len;
+            let mut cur_idx: usize = 0;
+            let numbers_vec: Vec<u32> = numbers.into_iter().collect();
+            while remaining > 0 {
+                let end_idx = if self.max_block_load < len - cur_idx {
+                    cur_idx + self.max_block_load
+                } else {
+                    len
+                };
+
+                let numbers_segment =
+                    HashSet::from_iter(&numbers_vec[cur_idx..end_idx].into_iter());
+
+                let blocks_segment = self.collect_blocks(move |n| numbers_segment.contains(&n)).await?;
+                res.append(blocks_segment);
+
+                remaining -= end_idx - cur_idx;
+                cur_idx = end_idx;
+            }
+
+            res
+        } else {
+            self.collect_blocks(move |n| numbers.contains(&n)).await?;
+        };
+
         Ok(Some(blocks))
     }
 
