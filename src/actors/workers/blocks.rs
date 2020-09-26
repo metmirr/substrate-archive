@@ -94,45 +94,34 @@ where
     /// gets any blocks that are missing from database and indexes those.
     /// sets the `last_max` value.
     async fn re_index(&mut self) -> Result<Option<Vec<Block<B>>>> {
+        log::debug!("max_block_load is {}", self.max_block_load);
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
-        // zeke - get blocks we might be missing, starting from the last max
-        let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
-        // len is the count of blocks missing
+        let mut numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
         let len = numbers.len();
         log::info!("{} missing blocks", len);
-        // Select the hightest block number in the db
         self.last_max = if let Some(m) = queries::max_block(&mut conn).await? {
             m
         } else {
             // a `None` means that the blocks table is not populated yet
             return Ok(None);
         };
-        // If length of numbers > self.max_block_load, collect in increments of max_block_load
-        let blocks = if (len > self.max_block_load) {
-            let res: Vec<Block<B>>;
-            let mut remaining = len;
-            let mut cur_idx: usize = 0;
-            let numbers_vec: Vec<u32> = numbers.into_iter().collect();
-            while remaining > 0 {
-                let end_idx = if self.max_block_load < len - cur_idx {
-                    cur_idx + self.max_block_load
-                } else {
-                    len
-                };
 
-                let numbers_segment =
-                    HashSet::from_iter(&numbers_vec[cur_idx..end_idx].into_iter());
+        let mut blocks = Vec::<Block<B>>::new();
+        let mut tmp_set = HashSet::<u32>::with_capacity(self.max_block_load);
+        for height in numbers.drain() {
+            // check if drain is O(n) and not
+            tmp_set.insert(height);
+            tmp_set = if tmp_set.len() >= self.max_block_load {
+                // TODO is there a way to check if last iterator so can avoid post loop if statement?
+                blocks.append(&mut self.collect_blocks(move |n| tmp_set.contains(&n)).await?);
+                HashSet::<u32>::with_capacity(self.max_block_load)
+            } else {
+                tmp_set
+            };
+        }
 
-                let blocks_segment = self.collect_blocks(move |n| numbers_segment.contains(&n)).await?;
-                res.append(blocks_segment);
-
-                remaining -= end_idx - cur_idx;
-                cur_idx = end_idx;
-            }
-
-            res
-        } else {
-            self.collect_blocks(move |n| numbers.contains(&n)).await?;
+        if !tmp_set.is_empty() {
+            blocks.append(&mut self.collect_blocks(move |n| tmp_set.contains(&n)).await?);
         };
 
         Ok(Some(blocks))
