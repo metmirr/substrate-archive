@@ -53,9 +53,9 @@ pub struct Builder<B, R, D> {
     pub wasm_pages: Option<u64>,
     /// Chain spec describing the chain
     pub chain_spec: Option<Box<dyn ChainSpec>>,
-	pub _marker: PhantomData<(B, R, D)>,
-	/// maximimum amount of blocks to index at once
-	pub max_block_load: Option<usize>,
+    pub _marker: PhantomData<(B, R, D)>,
+    /// maximimum amount of blocks to index at once
+    pub max_block_load: Option<usize>,
 }
 
 impl<B, R, D> Default for Builder<B, R, D> {
@@ -67,8 +67,8 @@ impl<B, R, D> Default for Builder<B, R, D> {
             block_workers: None,
             wasm_pages: None,
             chain_spec: None,
-			_marker: PhantomData,
-			max_block_load: None,
+            _marker: PhantomData,
+            max_block_load: None,
         }
     }
 }
@@ -126,16 +126,16 @@ impl<B, R, D> Builder<B, R, D> {
     pub fn chain_spec(mut self, spec: Box<dyn ChainSpec>) -> Self {
         self.chain_spec = Some(spec);
         self
-	}
-	
-	/// Set the number of blocks to index at once
-	/// 
-	/// # Default
-	/// Defaults to .. TODO
-	pub fn max_block_load(mut self, max_block_load: usize) -> Self { 
-		self.max_block_load = Some(max_block_load);
-		self;
-	}
+    }
+
+    /// Set the number of blocks to index at once
+    ///
+    /// # Default
+    /// Defaults to .. TODO
+    pub fn max_block_load(mut self, max_block_load: usize) -> Self {
+        self.max_block_load = Some(max_block_load);
+        self
+    }
 }
 
 fn parse_urls(chain_data_path: Option<String>, pg_url: Option<String>) -> (String, String) {
@@ -213,6 +213,8 @@ where
         let cache_size = self.cache_size.unwrap_or(128);
         let block_workers = self.block_workers.unwrap_or(num_cpus);
         let wasm_pages = self.wasm_pages.unwrap_or(64 * num_cpus as u64);
+        // FIXME: what is a reasonable default?
+        let max_block_load = self.max_block_load.unwrap_or(100);
         let db_path = create_database_path(self.chain_spec)?;
         smol::block_on(crate::migrations::migrate(&pg_url))?;
         let db = Arc::new(backend::util::open_database(
@@ -225,7 +227,13 @@ where
         let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true));
         Self::startup_info(&client, &backend)?;
 
-        let ctx = System::<_, R, _>::new(client, backend, block_workers, pg_url.as_str())?;
+        let ctx = System::<_, R, _>::new(
+            client,
+            backend,
+            block_workers,
+            pg_url.as_str(),
+            max_block_load,
+        )?;
         Ok(ctx)
     }
 
