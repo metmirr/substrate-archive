@@ -106,10 +106,12 @@ where
             return Ok(None);
         };
 
+		// TODO make through this into if/else - first check numbers < self.max_block_load
+		// before doing the below 
         let mut blocks = Vec::<Block<B>>::new();
         let mut tmp_set = HashSet::<u32>::with_capacity(self.max_block_load);
         for height in numbers.drain() {
-            // check if drain is O(n) and not
+            // TODO check if drain is O(1n) 
             tmp_set.insert(height);
             tmp_set = if tmp_set.len() >= self.max_block_load {
                 // TODO is there a way to check if last iterator so can avoid post loop if statement?
